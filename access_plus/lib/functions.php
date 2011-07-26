@@ -286,6 +286,40 @@ function access_plus_remove_from_array($value, $array){
 // called by the hook when a user is removed from an access collection
 // checks to see if that collection is used in a metacollection
 // if so, checks to see if the user needs to be removed, if so removes them
+// $params['user_guid'], $params['collection_id']
 function access_plus_remove_user($hook, $type, $returnvalue, $params){
+		// set a custom context to overwrite permissions temporarily
+	$context = get_context();
+	set_context('access_plus_permission');
 	
+	//get an array of all of the users metacollections
+	$currentlist = get_plugin_usersetting('acls', get_loggedin_userid(), 'access_plus');
+	$metacollection_array = explode(",", $currentlist);
+	
+	// iterate though the metacollections
+	foreach($metacollection_array as $id){
+		$componentlist = get_plugin_usersetting($id, get_loggedin_userid(), 'access_plus');
+		$components = explode(":", $componentlist);
+		
+		if(in_array($params['collection_id'], $components)){
+			// the collection is being used in this metacollection
+			// count how many other component collections the removed user is a member of
+			$count = 0;
+			for($i=0; $i<count($components); $i++){
+				$members = get_members_of_access_collection($components[$i], true);
+				if(is_array($members) && in_array($params['user_guid'], $members)){
+					// user is in this collection, count the collection
+					$count++;
+				}
+			}
+			
+			if($count == 1){
+				// the user is only in one component collection - the one being removed
+				// must remove from the metacollection then
+				remove_user_from_access_collection($params['user_guid'], $id);
+			}
+		}
+	}
+	
+	set_context($context);
 }
