@@ -7,5 +7,16 @@
 }
 
 .access_plus_site-wide-options{
-	background-color: #BBDAF7
+	background-color: #BBDAF7;
+	padding: 3px;
+}
+
+.access_plus_zebra_even{
+	padding: 3px;
+	background-color: #ffffff;
+}
+
+.access_plus_zebra_odd{
+	padding: 3px;
+	background-color: #ececec;
 }

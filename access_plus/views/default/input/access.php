@@ -61,24 +61,31 @@ if (is_array($vars['options']) && sizeof($vars['options']) > 0) {
 	?>
 	<input type="hidden" <?php if (isset($vars['internalid'])) echo "id=\"{$vars['internalid']}\""; ?> name="<?php echo $vars['internalname']; ?>" value="<?php echo $vars['value']; ?>">
 	<?php
-	echo "<div class=\"access_plus_site-wide-options\">";
 	foreach($elgg_access as $key => $option) {
+		echo "<div class=\"access_plus_site-wide-options\">";
 		if(in_array($key, $collectionarray)){
-			echo "<input name=\"access_plus[]\" id=\"access_plus{$key}\" class=\"access_plustoggle\" type=\"checkbox\" value=\"{$key}\" checked=\"checked\"><label for=\"access_plus{$key}\">". htmlentities($option, ENT_QUOTES, 'UTF-8') ."</label><br>";
+			echo "<input name=\"access_plus[]\" id=\"access_plus{$key}\" class=\"access_plustoggle\" type=\"checkbox\" value=\"{$key}\" checked=\"checked\"><label for=\"access_plus{$key}\">". htmlentities($option, ENT_QUOTES, 'UTF-8') ."</label>";
 		} else {
-			echo "<input name=\"access_plus[]\" id=\"access_plus{$key}\" class=\"access_plustoggle\" type=\"checkbox\" value=\"{$key}\"><label for=\"access_plus{$key}\">". htmlentities($option, ENT_QUOTES, 'UTF-8') ."</label><br>";
+			echo "<input name=\"access_plus[]\" id=\"access_plus{$key}\" class=\"access_plustoggle\" type=\"checkbox\" value=\"{$key}\"><label for=\"access_plus{$key}\">". htmlentities($option, ENT_QUOTES, 'UTF-8') ."</label>";
 		}
+		echo "</div>"; // access_plus_site-wide-options
 	}
-	echo "</div>"; // access_plus_site-wide-options
+	
 		
 	asort($vars['options']);
+	$oddeven = 0;
 	foreach($vars['options'] as $key => $option) {
 		if(!in_array($option, $elgg_access)){
+			// set up odd/even class name for zebra striping css
+			$oddeven++;
+			if($oddeven % 2){ $zebra = "odd"; }else{ $zebra = "even"; }
+			echo "<div class=\"access_plus_zebra_$zebra\">";
 			if(in_array($key, $collectionarray)){
-				echo "<input name=\"access_plus[]\" id=\"access_plus{$key}\" class=\"access_plustoggle\" type=\"checkbox\" value=\"{$key}\" checked=\"checked\"><label for=\"access_plus{$key}\">". htmlentities($option, ENT_QUOTES, 'UTF-8') ."</label><br>";
+				echo "<input name=\"access_plus[]\" id=\"access_plus{$key}\" class=\"access_plustoggle\" type=\"checkbox\" value=\"{$key}\" checked=\"checked\"><label for=\"access_plus{$key}\">". htmlentities($option, ENT_QUOTES, 'UTF-8') ."</label>";
 			} else {
-				echo "<input name=\"access_plus[]\" id=\"access_plus{$key}\" class=\"access_plustoggle\" type=\"checkbox\" value=\"{$key}\"><label for=\"access_plus{$key}\">". htmlentities($option, ENT_QUOTES, 'UTF-8') ."</label><br>";
+				echo "<input name=\"access_plus[]\" id=\"access_plus{$key}\" class=\"access_plustoggle\" type=\"checkbox\" value=\"{$key}\"><label for=\"access_plus{$key}\">". htmlentities($option, ENT_QUOTES, 'UTF-8') ."</label>";
 			}
+			echo "</div>"; // access_plus_zebra_$zebra
 		}
 	}
 

@@ -323,3 +323,53 @@ function access_plus_remove_user($hook, $type, $returnvalue, $params){
 	
 	set_context($context);
 }
+
+//
+// function called on user login event
+// this will empty all of the metacollections and repopulate them properly
+// this will restore proper permissions in case collections were edited while the
+// plugin was disabled
+function access_plus_sync_metacollections($event, $object_type, $object){
+	global $CONFIG;
+	$user = $object;
+	
+		// set a custom context to overwrite permissions temporarily
+	$context = get_context();
+	set_context('access_plus_permission');
+	
+	//get an array of all of the users metacollections
+	$currentlist = get_plugin_usersetting('acls', $user->guid, 'access_plus');
+	$metacollection_array = explode(",", $currentlist);
+	
+	// iterate though the metacollections
+	foreach($metacollection_array as $id){
+		if(is_numeric($id)){
+			// first we empty the collection
+			// using direct call for performance reasons and brevity
+			$success = delete_data("DELETE FROM {$CONFIG->dbprefix}access_collection_membership WHERE access_collection_id=$id");
+		
+			$componentlist = get_plugin_usersetting($id, get_loggedin_userid(), 'access_plus');
+			$components = explode(":", $componentlist);
+		
+			$members = array();
+			for($i=0; $i<count($components); $i++){
+				$tmpmembers = get_members_of_access_collection($components[$i], true);
+			
+				if(is_array($tmpmembers)){
+					$members = array_merge($members, $tmpmembers);
+				}
+			}
+			
+			// we now have an array of all the user guids that should be in the metacollection
+			// make sure there's no duplicates, and we'll add them all back in
+			$members = array_unique($members);
+			$members = array_values($members);
+		
+			foreach($members as $member){
+				add_user_to_access_collection($member, $id);
+			}
+		}
+	}
+	
+	set_context($context);
+}
