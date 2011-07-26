@@ -36,6 +36,6 @@ Also the reverse is possible
 wasn't updated with the new friend
 
 
-There is a sync function that is called when a user logs out, so these problems will correct
+There is a sync function that is called when a user logs in, so these problems will correct
 themselves if the plugin is re-enabled.
 Generally, just don't toggle it off and on for no good reason.

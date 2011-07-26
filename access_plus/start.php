@@ -40,7 +40,7 @@ register_elgg_event_handler('update','object','access_plus_object_create', 1000)
 register_elgg_event_handler('init', 'system', 'access_plus_pending_process', 1000);
 
 //call function on user logout to synchronize the metacollections with current collections
-register_elgg_event_handler('logout', 'user', 'access_plus_sync_metacollections', 1000);
+register_elgg_event_handler('login', 'user', 'access_plus_sync_metacollections', 1000);
 
 register_elgg_event_handler('init','system','access_plus_init');
 ?>
