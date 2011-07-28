@@ -54,6 +54,20 @@ function access_plus_add_user($hook, $type, $returnvalue, $params){
 	set_context($context);
 }
 
+function access_plus_blacklist($token){
+	$blacklist = get_plugin_setting('blacklist', 'access_plus');
+	$blackarray = explode(",", $blacklist);
+	
+	if(!in_array($token, $blackarray)){
+		$blackarray[] = $token;
+	}
+	
+	$blackarray = array_values($blackarray);
+	
+	$blacklist = implode(",", $blackarray);
+	set_plugin_setting('blacklist', $blacklist, 'access_plus');
+}
+
 //
 // creates a metacollection from an array of collection IDs
 function access_plus_create_metacollection($access){
@@ -112,6 +126,34 @@ function access_plus_create_metacollection($access){
 	set_context($context);
 }
 
+//
+// this function generates a token that is unique to a specific instance of an access view
+// tokens can be used to enable or disable multi-use on a per-instance basis
+// uses the name of the input field, as well as context and view count
+function access_plus_generate_token($name){
+	global $access_view_count;
+
+	$context = get_context();
+	
+	return md5($context . $access_view_count . $name);
+}
+
+//
+// returns true if the access instance is blacklisted
+function access_plus_is_blacklisted($token){
+	// get our blacklist from settings
+	$blacklist = get_plugin_setting('blacklist', 'access_plus');
+	$blackarray = explode(",", $blacklist);
+
+	if(!is_array($blackarray)){ $blackarray = array(); }
+	
+	if(in_array($token, $blackarray)){
+		// it's been blacklisted
+		return true;
+	}
+	
+	return false;
+}
 
 //
 // called on creation of object, sets permissions
@@ -123,6 +165,19 @@ function access_plus_object_create($event, $object_type, $object){
 	//after first use unset the post variable to prevent infinite loop!
 	unset($_POST['access_plus']);
 	
+	//make sure it's an array
+	if(is_array($access) && count($access) > 0){
+		$new_access_id = access_plus_parse_access($access);
+		// for some reason we can't update here, gets reset to original value
+		// save the new access_id in a plugin setting for later - will be updated on next pageload
+		$pending = $object->guid . "," . $new_access_id;
+		set_plugin_usersetting('pending_actions', $pending, get_loggedin_userid(), 'access_plus');	
+	} // if $access is array
+}
+
+//
+// this function takes an array of accesses, sorts out what the final value should be
+function access_plus_parse_access($access){
 	/*
 	 *	if $access is not an array we should do nothing
 	 *	if $access has only one item, we should set that as the object access_id
@@ -142,93 +197,77 @@ function access_plus_object_create($event, $object_type, $object){
 	 *	After these filters, we can merge collections if necessary
 	 */
 	
-	//make sure it's an array
-	if(is_array($access) && count($access) > 0){
-		if(count($access) == 1){
-			//only one option was selected, so set it and we're done
-			$new_access_id = $access[0];
+	if(count($access) == 1){
+		//only one option was selected, so set it and we're done
+		$new_access_id = $access[0];
+	}
+	else{
+		//there are multiple options selected
+		sort($access);
+		if(in_array(ACCESS_PUBLIC, $access)){
+			//public was one of the selections, nothing else matters
+			$new_access_id = ACCESS_PUBLIC;
+		}
+		elseif(in_array(ACCESS_LOGGED_IN, $access)){
+			//logged in users was selected, trumps anything but public
+			$new_access_id = ACCESS_LOGGED_IN;
+		}
+		elseif(in_array(ACCESS_FRIENDS, $access)){
+			//friends selected, trumps anything but public and logged in
+			$new_access_id = ACCESS_FRIENDS;
 		}
 		else{
-			//there are multiple options selected
-			sort($access);
-			if(in_array(ACCESS_PUBLIC, $access)){
-				//public was one of the selections, nothing else matters
-				$new_access_id = ACCESS_PUBLIC;
+			//private was selected with something else, which makes private unneccesary
+			//remove private from the access array
+			if(in_array(ACCESS_PRIVATE, $access)){
+				$access = access_plus_remove_from_array(ACCESS_PRIVATE, $access);
 			}
-			elseif(in_array(ACCESS_LOGGED_IN, $access)){
-				//logged in users was selected, trumps anything but public
-				$new_access_id = ACCESS_LOGGED_IN;
-			}
-			elseif(in_array(ACCESS_FRIENDS, $access)){
-				//friends selected, trumps anything but public and logged in
-				$new_access_id = ACCESS_FRIENDS;
-			}
-			else{
-				//private was selected with something else, which makes private unneccesary
-				//remove private from the access array
-				if(in_array(ACCESS_PRIVATE, $access)){
-					$access = access_plus_remove_from_array(ACCESS_PRIVATE, $access);
-				}
+			
+			// now we should have an array of collections that should be merged if necessary
+			// first lets check to see if the collection already exists
+			
+			//collection id is stored in plugin settings
+			//stored with unique name in the form of <collection1>:<collection2>:...
 				
-				// now we should have an array of collections that should be merged if necessary
-				// first lets check to see if the collection already exists
-				
-				//collection id is stored in plugin settings
-				//stored with unique name in the form of <collection1>:<collection2>:...
-				
-				for($i=0; $i<count($access); $i++){
-					if($i == 0){
-						$key = $access[$i];
-					}
-					else{
-						$key .= ":" . $access[$i];
-					}
-				}
-
-				// get our saved access collection id, if it exists
-				$acl_id = get_plugin_usersetting($key, get_loggedin_userid(), 'access_plus');
-				
-				if(!$acl_id){
-					//we don't have an existing collection for this combination
-					//have to create a new one
-					$new_acl_id = access_plus_create_metacollection($access);
-					
-					if(is_numeric($new_acl_id)){
-						//save our new collection ID
-						// we save plugin settings with both the key and value reversed so we can
-						// calculate what collections are merged later on
-						set_plugin_usersetting($key, $new_acl_id, get_loggedin_userid(), 'access_plus');
-						set_plugin_usersetting($new_acl_id, $key, get_loggedin_userid(), 'access_plus');
-						access_plus_add_to_user_collection_keys($new_acl_id);
-						$new_access_id = $new_acl_id;
-					}
-					else{
-						//there was a problem, make it private instead and throw an error
-						$new_access_id = ACCESS_PRIVATE;
-						register_error(elgg_echo('access_plus:metacollection:creation:error'));
-					}
+			for($i=0; $i<count($access); $i++){
+				if($i == 0){
+					$key = $access[$i];
 				}
 				else{
-					//we have an existing collection for this so we'll use it
-					$new_access_id = $acl_id;
+					$key .= ":" . $access[$i];
 				}
 			}
+
+			// get our saved access collection id, if it exists
+			$acl_id = get_plugin_usersetting($key, get_loggedin_userid(), 'access_plus');
+				
+			if(!$acl_id){
+				//we don't have an existing collection for this combination
+				//have to create a new one
+				$new_acl_id = access_plus_create_metacollection($access);
+					
+				if(is_numeric($new_acl_id)){
+					//save our new collection ID
+					// we save plugin settings with both the key and value reversed so we can
+					// calculate what collections are merged later on
+					set_plugin_usersetting($key, $new_acl_id, get_loggedin_userid(), 'access_plus');
+					set_plugin_usersetting($new_acl_id, $key, get_loggedin_userid(), 'access_plus');
+					access_plus_add_to_user_collection_keys($new_acl_id);
+					$new_access_id = $new_acl_id;
+				}
+				else{
+					//there was a problem, make it private instead and throw an error
+					$new_access_id = ACCESS_PRIVATE;
+					register_error(elgg_echo('access_plus:metacollection:creation:error'));
+				}
+			}
+			else{
+				//we have an existing collection for this so we'll use it
+				$new_access_id = $acl_id;
+			}
 		}
-		// perform our query
-		// using a direct call to the database so an infinite loop of update events isn't triggered
-		// also there is an as-yet unidentified bug that resets the access_id to the original on an update
-		// Hopefully I can find a more Elgg-ish way to do this, but until then...
-		
-		if($event == "create"){
-			update_data("UPDATE {$CONFIG->dbprefix}entities set access_id='$new_access_id' WHERE guid=$object->guid");
-		}
-		elseif($event == "update"){
-			// for some reason we can't update here, gets reset to original value
-			// save the new access_id in a plugin setting for later - will be updated on next pageload
-			$pending = $object->guid . "," . $new_access_id;
-			set_plugin_usersetting('pending_actions', $pending, get_loggedin_userid(), 'access_plus');	
-		}
-	} // if $access is array
+	}
+	return $new_access_id;
 }
 
 //
@@ -246,6 +285,7 @@ function access_plus_pending_process(){
 		
 		// make sure we have stuff to update
 		if(is_numeric($guid) && is_numeric($access_id)){
+			// direct call to database to prevent infinite loop of events
 			$success = update_data("UPDATE {$CONFIG->dbprefix}entities set access_id='$access_id' WHERE guid=$guid");
 			
 			if($success){
@@ -372,4 +412,17 @@ function access_plus_sync_metacollections($event, $object_type, $object){
 	}
 	
 	set_context($context);
+}
+
+//
+// removes a token from the blacklist
+function access_plus_unblacklist($token){
+	$blacklist = get_plugin_setting('blacklist', 'access_plus');
+	$blackarray = explode(",", $blacklist);
+	
+	$blackarray = access_plus_remove_from_array($token, $blackarray);
+	
+	$blacklist = implode(",", $blackarray);
+	
+	set_plugin_setting('blacklist', $blacklist, 'access_plus');
 }

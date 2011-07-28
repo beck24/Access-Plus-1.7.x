@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin_manifest>
     <field key="author" value="Matt Beckett" />
-    <field key="version" value="0.1" />
+    <field key="version" value="0.2" />
     <field key="description" value="Set multiple access collections for an entity" />
     <field key="website" value="http://clever-name.com" />
     <field key="copyright" value="(C) Matt Beckett, 2011" />
