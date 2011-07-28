@@ -34,6 +34,7 @@ function access_plus_init() {
 		// they represent access selections that are buggy at this time
 		// may not work depending on other plugins, but it can't hurt
 		$blackarray = array();
+		// profile information
 		$blackarray[] = "c31f064d899c129886eff1022215005e";
 		$blackarray[] = "79899ad5e893827b544d66abdcc37018";
 		$blackarray[] = "08b22d96b03fe5e2ae2631cbb4419c1c";
@@ -43,7 +44,10 @@ function access_plus_init() {
 		$blackarray[] = "9540867079f4c70c185a57f1c7315401";
 		$blackarray[] = "8228851e1e62ca27d2a0ca912c26ab19";
 		$blackarray[] = "2009056f6c7977dd7bd309acd531d2b7";
+		// group open/closed
 		$blackarray[] = "1354927dabe566ba9b5e02082e3c260a";
+		// page write access
+		$blackarray[] = "7daf5c485c0a582297bec6a6dab25e4f";
 		$blacklist = implode(",", $blackarray);
 		set_plugin_setting('blacklist', $blacklist, 'access_plus');
 	}
