@@ -7,7 +7,7 @@
 Designed and Coded by: Matt Beckett
 
 Scope:
-This plugin enables a user to select multiple access collections for a single object,
+This plugin enables a user to select multiple access collections for a single piece of content,
 much like google+.  This has been an often requested feature even before the advent of google+.
 
 Method:

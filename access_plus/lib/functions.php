@@ -1,5 +1,52 @@
 <?php
 //
+// called on creation of object, sets permissions
+function access_plus_access_process($event, $object_type, $object){
+	global $CONFIG;
+	
+	$flag = $object->access_id;
+	
+	//find which $_POST variable we need
+	// will be an array in the form of $_POST['access_plus#'] where # is the view count
+	$id = get_plugin_setting('get_field_count'.$flag, 'access_plus');
+	
+	//get our access collections for this object
+	$access = $_POST['access_plus'.$id];
+	
+	//make sure it's an array
+	if(is_array($access) && count($access) > 0){
+		$new_access_id = access_plus_parse_access($access);
+		
+		if($object instanceof ElggEntity){
+			$guid = $object->guid;
+		}
+		else{
+			$guid = $object->id;
+		}
+		
+		// for some reason we can't update here, gets reset to original value
+		// save the new access_id in a plugin setting for later - will be updated on next pageload
+		$pending = $object_type . ":" . $guid . ":" . $new_access_id;
+		access_plus_add_to_pending_actions($pending);	
+	} // if $access is array
+}
+
+//
+// this function adds a string of pending operations to the existing list
+function access_plus_add_to_pending_actions($pending){
+	$currentpending = get_plugin_usersetting('pending_actions', get_loggedin_userid(), 'access_plus');
+	
+	if(!empty($currentpending)){
+		$newpending = $currentpending . "," . $pending;
+	}
+	else{
+		$newpending = $pending;
+	}
+	
+	set_plugin_usersetting('pending_actions', $newpending, get_loggedin_userid(), 'access_plus');	
+}
+
+//
 // adds a new id to the list of user collections
 function access_plus_add_to_user_collection_keys($new_acl_id){
 	$currentlist = get_plugin_usersetting('acls', get_loggedin_userid(), 'access_plus');
@@ -176,30 +223,6 @@ function access_plus_is_blacklisted($token){
 	return false;
 }
 
-//
-// called on creation of object, sets permissions
-function access_plus_object_create($event, $object_type, $object){
-	global $CONFIG;
-	
-	$flag = $object->access_id;
-	
-	//find which $_POST variable we need
-	// will be an array in the form of $_POST['access_plus#'] where # is the view count
-	$id = get_plugin_setting('get_field_count'.$flag, 'access_plus');
-	
-	//get our access collections for this object
-	$access = $_POST['access_plus'.$id];
-
-	
-	//make sure it's an array
-	if(is_array($access) && count($access) > 0){
-		$new_access_id = access_plus_parse_access($access);
-		// for some reason we can't update here, gets reset to original value
-		// save the new access_id in a plugin setting for later - will be updated on next pageload
-		$pending = $object->guid . "," . $new_access_id;
-		set_plugin_usersetting('pending_actions', $pending, get_loggedin_userid(), 'access_plus');	
-	} // if $access is array
-}
 
 //
 // this function takes an array of accesses, sorts out what the final value should be
@@ -301,23 +324,47 @@ function access_plus_parse_access($access){
 function access_plus_pending_process(){
 	global $CONFIG;
 	
-	$change = get_plugin_usersetting('pending_actions', get_loggedin_userid(), 'access_plus');
+	$pending = get_plugin_usersetting('pending_actions', get_loggedin_userid(), 'access_plus');
 	
-	if(!empty($change)){
+	if(!empty($pending)){
 		// we have a change to update
-		$changearray = explode(",", $change);
-		$guid = $changearray[0];
-		$access_id = $changearray[1];
+		$pendingarray = explode(",", $pending);
 		
-		// make sure we have stuff to update
-		if(is_numeric($guid) && is_numeric($access_id)){
-			// direct call to database to prevent infinite loop of events
-			$success = update_data("UPDATE {$CONFIG->dbprefix}entities set access_id='$access_id' WHERE guid=$guid");
+		// each $changearray is a string in the form of <object type>:<guid>:<access_id>
+		foreach($pendingarray as $changestring){
+			$change = explode(":", $changestring);
 			
-			if($success){
-				set_plugin_usersetting('pending_actions', '', get_loggedin_userid(), 'access_plus');
+			// $change[0] = object type, $change[1] = guid, $change[2] = access_id
+			$datatype = $change[0];
+			$guid = intval($change[1]);
+			$access_id = intval($change[2]);
+			
+			if($datatype == "object"){
+				// make sure we have stuff to update
+				if(is_numeric($guid) && is_numeric($access_id)){
+					// direct call to database to prevent infinite loop of events
+					update_data("UPDATE {$CONFIG->dbprefix}entities set access_id='$access_id' WHERE guid=$guid");
+				}		
 			}
+			elseif($datatype == "metadata"){
+				// make sure we have stuff to update
+				if(is_numeric($guid) && is_numeric($access_id)){
+					// direct call to database to prevent infinite loop of events
+					update_data("UPDATE {$CONFIG->dbprefix}metadata set access_id=$access_id WHERE id=$guid");
+				}
+			}
+			elseif($datatype == "annotation"){
+				// make sure we have stuff to update
+				if(is_numeric($guid) && is_numeric($access_id)){
+					// direct call to database to prevent infinite loop of events
+					update_data("UPDATE {$CONFIG->dbprefix}annotations set access_id=$access_id WHERE id=$guid");
+				}
+			}
+			// as we add new datatypes this will be extended
 		}
+		
+		// finished processing the necessary updates, remove pending actions
+		set_plugin_usersetting('pending_actions', '', get_loggedin_userid(), 'access_plus');
 	}
 }
 

@@ -148,7 +148,6 @@ else{
 		name="<?php echo $vars['internalname']; ?>"
 		value="<?php echo $flag; ?>">
 		<?php
-
 		$name = $vars['internalname'];
 		$oddeven = 0;
 		for($i=0; $i<count($tmpoptions); $i++){

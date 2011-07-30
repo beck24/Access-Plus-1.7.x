@@ -1,7 +1,10 @@
 Changelog
 
-07/29/2011 - v0.3
+07/30/2011 - v0.3
+Added support for multiple objects per access field
 Added support for multiple access fields per form
+Added support for metadata access (eg. profile fields)
+Added support for annotation access (can't think of an example, but it's there if it's needed)
 
 07/28/2011 - v0.2
 Fixed bug with the option generation (alphbetizing and merging with site-wide options)

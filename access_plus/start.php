@@ -34,16 +34,6 @@ function access_plus_init() {
 		// they represent access selections that are buggy at this time
 		// may not work depending on other plugins, but it can't hurt
 		$blackarray = array();
-		// profile information
-		$blackarray[] = "c31f064d899c129886eff1022215005e";
-		$blackarray[] = "79899ad5e893827b544d66abdcc37018";
-		$blackarray[] = "08b22d96b03fe5e2ae2631cbb4419c1c";
-		$blackarray[] = "10f2840ee75be492f57e585d4908839c";
-		$blackarray[] = "ad24f78a0b7c3ff35a1cc36a29135368";
-		$blackarray[] = "e14e66d32ca636c015b18395bb193229";
-		$blackarray[] = "9540867079f4c70c185a57f1c7315401";
-		$blackarray[] = "8228851e1e62ca27d2a0ca912c26ab19";
-		$blackarray[] = "2009056f6c7977dd7bd309acd531d2b7";
 		// group open/closed
 		$blackarray[] = "1354927dabe566ba9b5e02082e3c260a";
 		// page write access
@@ -60,17 +50,23 @@ function access_plus_init() {
 	register_plugin_hook('access:collections:remove_user', 'collection', 'access_plus_remove_user');
 }
 
-// call function on object creation to set permissions
-register_elgg_event_handler('create','object','access_plus_object_create', 1000);
+// call function on object creation and update to set permissions
+register_elgg_event_handler('create','object','access_plus_access_process', 0);
+register_elgg_event_handler('update','object','access_plus_access_process', 0);
 
-// call function on object update to set permissions
-register_elgg_event_handler('update','object','access_plus_object_create', 1000);
+// call function on metadata creation and update to set permissions
+register_elgg_event_handler('create','metadata','access_plus_access_process', 0);
+register_elgg_event_handler('update','metadata','access_plus_access_process', 0);
+
+// call function on annotation creation and update to set permissions
+register_elgg_event_handler('create','annotation','access_plus_access_process', 0);
+register_elgg_event_handler('update','annotation','access_plus_access_process', 0);
 
 // call function on page load to update any permissions that are pending
-register_elgg_event_handler('init', 'system', 'access_plus_pending_process', 1000);
+register_elgg_event_handler('init', 'system', 'access_plus_pending_process');
 
-//call function on user logout to synchronize the metacollections with current collections
-register_elgg_event_handler('login', 'user', 'access_plus_sync_metacollections', 1000);
+//call function on user login to synchronize the metacollections with current collections
+register_elgg_event_handler('login', 'user', 'access_plus_sync_metacollections');
 
 register_elgg_event_handler('init','system','access_plus_init');
 
