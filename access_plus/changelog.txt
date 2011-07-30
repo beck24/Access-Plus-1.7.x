@@ -1,5 +1,8 @@
 Changelog
 
+07/29/2011 - v0.3
+Added support for multiple access fields per form
+
 07/28/2011 - v0.2
 Fixed bug with the option generation (alphbetizing and merging with site-wide options)
 Made access level parsing a modular function for future updates (hopefully to handle metadata/annotation access)

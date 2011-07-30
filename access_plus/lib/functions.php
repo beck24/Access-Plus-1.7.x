@@ -69,6 +69,27 @@ function access_plus_blacklist($token){
 }
 
 //
+// creates a new flag for the access view count
+// returns the id of the empty placeholder access collection
+function access_plus_create_field_count_flag($access_view_count){
+	if(!is_numeric($access_view_count)){
+		return false;
+	}
+	
+	// if guid is set to 0, then it defaults to logged in user
+	// use -9999 so that it defaults to 0, and the users collections aren't cluttered
+	$key = "access_plus_flag" . $access_view_count;
+	$id = create_access_collection($key, -9999);
+	
+	// save our flag in plugin settings so we don't have to recreate it next time
+	set_plugin_setting('field_count'.$access_view_count, $id, 'access_plus');
+	// save a reverse setting so we can retrieve the field count from the id
+	set_plugin_setting('get_field_count'.$id, $access_view_count, 'access_plus');
+	
+	return $id;
+}
+
+//
 // creates a metacollection from an array of collection IDs
 function access_plus_create_metacollection($access){
 	if(!is_array($access)){
@@ -160,10 +181,15 @@ function access_plus_is_blacklisted($token){
 function access_plus_object_create($event, $object_type, $object){
 	global $CONFIG;
 	
+	$flag = $object->access_id;
+	
+	//find which $_POST variable we need
+	// will be an array in the form of $_POST['access_plus#'] where # is the view count
+	$id = get_plugin_setting('get_field_count'.$flag, 'access_plus');
+	
 	//get our access collections for this object
-	$access = $_POST['access_plus'];
-	//after first use unset the post variable to prevent infinite loop!
-	unset($_POST['access_plus']);
+	$access = $_POST['access_plus'.$id];
+
 	
 	//make sure it's an array
 	if(is_array($access) && count($access) > 0){

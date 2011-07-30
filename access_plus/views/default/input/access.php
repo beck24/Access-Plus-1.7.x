@@ -27,6 +27,33 @@ else{
 	$access_view_count++;
 }
 
+
+// use the access view count to set the default value of the default field
+// this will be passed to the event handler and we'll be able to tell what the new value should be
+//
+// create empty access collections to use as placeholders for counts
+// sounds complicated...
+// but here's what's happening
+//
+// if this is the first time the view is called then $access_view_count = 1
+// so we'll set a hidden input with this value
+// a plugin setting called 'field_count1' will be retrieved, if it doesn't exist we'll create it
+// the plugin setting will hold the id of an empty collection, and this will be set as the
+// default value for the $vars['internalname']
+//
+// so when the form is submitted, we can get the set access_id, which will be equal to our
+// field_count value, from that we can tell which $_POST value to use to reset the access
+//
+// simple... right? right.
+
+// so to start, we're going to get our system flag for the current view_count
+$flag = get_plugin_setting('field_count'.$access_view_count, 'access_plus');
+
+if(!$flag){
+	//if we have no flag for this count we're creating one
+	$flag = access_plus_create_field_count_flag($access_view_count);
+}
+
 // get our token and see if this view has been blacklisted
 $token = access_plus_generate_token($vars['internalname']);
 //var_dump($token);
@@ -118,9 +145,8 @@ else{
  */
 ?>
 	<input type="hidden"
-	<?php if (isset($vars['internalid'])) echo "id=\"{$vars['internalid']}\""; ?>
 		name="<?php echo $vars['internalname']; ?>"
-		value="<?php echo $vars['value']; ?>">
+		value="<?php echo $flag; ?>">
 		<?php
 
 		$name = $vars['internalname'];
@@ -134,9 +160,9 @@ else{
 			if(in_array($key, $elgg_access)){ $zebra = "site-wide-options"; }
 			echo "<div class=\"access_plus_$zebra\">";
 			if(in_array($key, $collectionarray)){
-				echo "<input name=\"access_plus[]\" id=\"access_plus_{$access_view_count}_{$key}\" class=\"{$vars['class']}\" type=\"checkbox\" value=\"{$key}\" checked=\"checked\"><label for=\"access_plus_{$access_view_count}_{$key}\">". htmlentities($tmpoptions[$i][$key], ENT_QUOTES, 'UTF-8') ."</label>";
+				echo "<input name=\"access_plus{$access_view_count}[]\" id=\"access_plus_{$access_view_count}_{$key}\" class=\"{$vars['class']}\" type=\"checkbox\" value=\"{$key}\" checked=\"checked\"><label for=\"access_plus_{$access_view_count}_{$key}\">". htmlentities($tmpoptions[$i][$key], ENT_QUOTES, 'UTF-8') ."</label>";
 			} else {
-				echo "<input name=\"access_plus[]\" id=\"access_plus_{$access_view_count}_{$key}\" class=\"{$vars['class']}\" type=\"checkbox\" value=\"{$key}\"><label for=\"access_plus_{$access_view_count}_{$key}\">". htmlentities($tmpoptions[$i][$key], ENT_QUOTES, 'UTF-8') ."</label>";
+				echo "<input name=\"access_plus{$access_view_count}[]\" id=\"access_plus_{$access_view_count}_{$key}\" class=\"{$vars['class']}\" type=\"checkbox\" value=\"{$key}\"><label for=\"access_plus_{$access_view_count}_{$key}\">". htmlentities($tmpoptions[$i][$key], ENT_QUOTES, 'UTF-8') ."</label>";
 			}
 
 			echo "</div>"; // access_plus_$zebra
