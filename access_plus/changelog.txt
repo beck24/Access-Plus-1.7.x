@@ -1,5 +1,8 @@
 Changelog
 
+08/12/2011 - v0.4
+Documented logic flaw for friends & group collections
+
 07/30/2011 - v0.3
 Added support for multiple objects per access field
 Added support for multiple access fields per form
