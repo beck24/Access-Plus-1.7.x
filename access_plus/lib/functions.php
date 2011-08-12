@@ -47,6 +47,29 @@ function access_plus_add_to_pending_actions($pending){
 }
 
 //
+// adds the user to the list to sync their collections
+// list is stored as a plugin setting, then processed on hourly cron
+function access_plus_add_to_sync_list($event, $object_type, $object){
+	$synclist = get_plugin_setting('synclist', 'access_plus');
+	$syncarray = explode(",", $synclist);
+	
+	if(!is_array($syncarray)){
+		$syncarray = array($object->guid);
+	}
+	else{
+		if(!in_array($object->guid, $syncarray)){
+			$syncarray[] = $object->guid;
+		}
+	}
+	
+	$synclist = implode(",", $syncarray);
+	
+	//save the modified list
+	set_plugin_setting('synclist', $synclist, 'access_plus');
+}
+
+
+//
 // adds a new id to the list of user collections
 function access_plus_add_to_user_collection_keys($new_acl_id){
 	$currentlist = get_plugin_usersetting('acls', get_loggedin_userid(), 'access_plus');
@@ -168,7 +191,20 @@ function access_plus_create_metacollection($access){
 		// we've created the metacollection, populate it from the component collections
 		$members = array();
 		for($i=0; $i<count($access); $i++){
-			$tmp_members = get_members_of_access_collection($access[$i], true);
+			
+			if($access[$i] == ACCESS_FRIENDS){
+				// we're adding every friend we have in this special case
+				$user = get_loggedin_user();
+				$friends = $user->getFriends("", 0, 0);
+				$tmp_members = array();
+				foreach($friends as $friend){
+					$tmp_members[] = $friend->guid;
+				}
+			}
+			else{
+				$tmp_members = get_members_of_access_collection($access[$i], true);
+			}
+			
 			if(is_array($tmp_members) && count($tmp_members) > 0){
 				$members = array_merge($members, $tmp_members);
 			}
@@ -223,6 +259,55 @@ function access_plus_is_blacklisted($token){
 	return false;
 }
 
+//
+// this function tades accesses and merges the collections
+function access_plus_merge_collections($access){
+
+	// now we should have an array of collections that should be merged if necessary
+	// first lets check to see if the collection already exists
+			
+	//collection id is stored in plugin settings
+	//	stored with unique name in the form of <collection1>:<collection2>:...
+				
+	for($i=0; $i<count($access); $i++){
+		if($i == 0){
+			$key = $access[$i];
+		}
+		else{
+			$key .= ":" . $access[$i];
+		}
+	}
+
+	// get our saved access collection id, if it exists
+	$acl_id = get_plugin_usersetting($key, get_loggedin_userid(), 'access_plus');
+				
+	if(!$acl_id){
+		//we don't have an existing collection for this combination
+		//have to create a new one
+		$new_acl_id = access_plus_create_metacollection($access);
+					
+		if(is_numeric($new_acl_id)){
+			//save our new collection ID
+			// we save plugin settings with both the key and value reversed so we can
+			// calculate what collections are merged later on
+			set_plugin_usersetting($key, $new_acl_id, get_loggedin_userid(), 'access_plus');
+			set_plugin_usersetting($new_acl_id, $key, get_loggedin_userid(), 'access_plus');
+			access_plus_add_to_user_collection_keys($new_acl_id);
+			$new_access_id = $new_acl_id;
+		}
+		else{
+			//there was a problem, make it private instead and throw an error
+			$new_access_id = ACCESS_PRIVATE;
+			register_error(elgg_echo('access_plus:metacollection:creation:error'));
+		}
+	}
+	else{
+		//we have an existing collection for this so we'll use it
+		$new_access_id = $acl_id;
+	}
+
+	return $new_access_id;
+}
 
 //
 // this function takes an array of accesses, sorts out what the final value should be
@@ -240,7 +325,8 @@ function access_plus_parse_access($access){
 	 *	then the something else is pointless, just set it as public.
 	 *	If not public, but logged in users and something else, set as logged in
 	 *	If not public or logged in, but friends, then set as friends
-	 *	(as friends are required to make the collections)
+	 *	BUT we need to make sure there's no group collections because they might contain non-friends
+	 *	in that case we make a metacollection for all friends plus that group...
 	 *
 	 *	If private and something else is set, then private is pointless - strip it out
 	 *	After these filters, we can merge collections if necessary
@@ -263,7 +349,31 @@ function access_plus_parse_access($access){
 		}
 		elseif(in_array(ACCESS_FRIENDS, $access)){
 			//friends selected, trumps anything but public and logged in
-			$new_access_id = ACCESS_FRIENDS;
+			// except if there are group access collections
+			
+			//check if there are group collections
+			$groups = array();
+			foreach($access as $access_id){
+				$grouptest = false;
+				if($access_id != ACCESS_FRIENDS){
+					$collection = get_access_collection($access_id);
+					$grouptest = get_entity($collection->owner_guid);
+				}
+				if($grouptest instanceof ElggGroup){
+					$groups[] = $access_id;
+				} 
+			}
+			
+			if(count($groups) != 0){
+				// there are groups, so we need to merge collections
+				$groups[] = ACCESS_FRIENDS;
+				sort($groups);
+				$new_access_id = access_plus_merge_collections($groups);
+			}
+			else{
+				// no groups, so we can just set it to friends
+				$new_access_id = ACCESS_FRIENDS;
+			}
 		}
 		else{
 			//private was selected with something else, which makes private unneccesary
@@ -272,48 +382,7 @@ function access_plus_parse_access($access){
 				$access = access_plus_remove_from_array(ACCESS_PRIVATE, $access);
 			}
 			
-			// now we should have an array of collections that should be merged if necessary
-			// first lets check to see if the collection already exists
-			
-			//collection id is stored in plugin settings
-			//stored with unique name in the form of <collection1>:<collection2>:...
-				
-			for($i=0; $i<count($access); $i++){
-				if($i == 0){
-					$key = $access[$i];
-				}
-				else{
-					$key .= ":" . $access[$i];
-				}
-			}
-
-			// get our saved access collection id, if it exists
-			$acl_id = get_plugin_usersetting($key, get_loggedin_userid(), 'access_plus');
-				
-			if(!$acl_id){
-				//we don't have an existing collection for this combination
-				//have to create a new one
-				$new_acl_id = access_plus_create_metacollection($access);
-					
-				if(is_numeric($new_acl_id)){
-					//save our new collection ID
-					// we save plugin settings with both the key and value reversed so we can
-					// calculate what collections are merged later on
-					set_plugin_usersetting($key, $new_acl_id, get_loggedin_userid(), 'access_plus');
-					set_plugin_usersetting($new_acl_id, $key, get_loggedin_userid(), 'access_plus');
-					access_plus_add_to_user_collection_keys($new_acl_id);
-					$new_access_id = $new_acl_id;
-				}
-				else{
-					//there was a problem, make it private instead and throw an error
-					$new_access_id = ACCESS_PRIVATE;
-					register_error(elgg_echo('access_plus:metacollection:creation:error'));
-				}
-			}
-			else{
-				//we have an existing collection for this so we'll use it
-				$new_access_id = $acl_id;
-			}
+			$new_access_id = access_plus_merge_collections($access);
 		}
 	}
 	return $new_access_id;
@@ -438,53 +507,72 @@ function access_plus_remove_user($hook, $type, $returnvalue, $params){
 }
 
 //
-// function called on user login event
+// function called on cron
 // this will empty all of the metacollections and repopulate them properly
 // this will restore proper permissions in case collections were edited while the
 // plugin was disabled
-function access_plus_sync_metacollections($event, $object_type, $object){
+function access_plus_sync_metacollections($hook, $entity_type, $returnvalue, $params){
 	global $CONFIG;
-	$user = $object;
 	
-		// set a custom context to overwrite permissions temporarily
+	$synclist = get_plugin_setting('synclist', 'access_plus');
+	$syncarray = explode(",", $synclist);
+
+	//set a custom context to overwrite permissions temporarily
 	$context = get_context();
 	set_context('access_plus_permission');
 	
-	//get an array of all of the users metacollections
-	$currentlist = get_plugin_usersetting('acls', $user->guid, 'access_plus');
-	$metacollection_array = explode(",", $currentlist);
+	foreach($syncarray as $guid){
+		$user = get_user($guid);
+		if($user instanceof ElggUser){
 	
-	// iterate though the metacollections
-	foreach($metacollection_array as $id){
-		if(is_numeric($id)){
-			// first we empty the collection
-			// using direct call for performance reasons and brevity
-			$success = delete_data("DELETE FROM {$CONFIG->dbprefix}access_collection_membership WHERE access_collection_id=$id");
-		
-			$componentlist = get_plugin_usersetting($id, get_loggedin_userid(), 'access_plus');
-			$components = explode(":", $componentlist);
-		
-			$members = array();
-			for($i=0; $i<count($components); $i++){
-				$tmpmembers = get_members_of_access_collection($components[$i], true);
-			
-				if(is_array($tmpmembers)){
-					$members = array_merge($members, $tmpmembers);
-				}
-			}
-			
-			// we now have an array of all the user guids that should be in the metacollection
-			// make sure there's no duplicates, and we'll add them all back in
-			$members = array_unique($members);
-			$members = array_values($members);
-		
-			foreach($members as $member){
-				add_user_to_access_collection($member, $id);
-			}
-		}
-	}
+			//get an array of all of the users metacollections
+			$currentlist = get_plugin_usersetting('acls', $user->guid, 'access_plus');
+			$metacollection_array = explode(",", $currentlist);
 	
+			// iterate though the metacollections
+			foreach($metacollection_array as $id){
+				if(is_numeric($id)){
+					// first we empty the collection
+					// using direct call for performance reasons and brevity
+					$success = delete_data("DELETE FROM {$CONFIG->dbprefix}access_collection_membership WHERE access_collection_id=$id");
+		
+					$componentlist = get_plugin_usersetting($id, get_loggedin_userid(), 'access_plus');
+					$components = explode(":", $componentlist);
+		
+					$members = array();
+					for($i=0; $i<count($components); $i++){
+						
+						if($components[$i] == ACCESS_FRIENDS){
+							$tmpmembers = array();
+							$friends = $user->getFriends("", 0, 0);
+							
+							foreach($friends as $friend){
+								$tmpmembers[] = $friend->guid;
+							}
+						}
+						else{
+							$tmpmembers = get_members_of_access_collection($components[$i], true);
+						}
+			
+						if(is_array($tmpmembers)){
+							$members = array_merge($members, $tmpmembers);
+						}
+					}
+			
+					// we now have an array of all the user guids that should be in the metacollection
+					// make sure there's no duplicates, and we'll add them all back in
+					$members = array_unique($members);
+					$members = array_values($members);
+		
+					foreach($members as $member){
+						add_user_to_access_collection($member, $id);
+					}
+				} 	// if id is numeric
+			}	//iterating through metacollections
+		}	// if user is instance of ElggUser
+	} // foreach $synclist
 	set_context($context);
+	set_plugin_setting('synclist', '', 'access_plus');
 }
 
 //

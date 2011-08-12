@@ -38,6 +38,8 @@ function access_plus_init() {
 		$blackarray[] = "1354927dabe566ba9b5e02082e3c260a";
 		// page write access
 		$blackarray[] = "7daf5c485c0a582297bec6a6dab25e4f";
+		// site administration - default access setting
+		$blackarray[] = "37f86bef6ad8f257cc6c4f498cd5e247";
 		$blacklist = implode(",", $blackarray);
 		set_plugin_setting('blacklist', $blacklist, 'access_plus');
 	}
@@ -48,6 +50,9 @@ function access_plus_init() {
 	// watch for changes in collection membership
 	register_plugin_hook('access:collections:add_user', 'collection', 'access_plus_add_user');
 	register_plugin_hook('access:collections:remove_user', 'collection', 'access_plus_remove_user');
+	
+	// set the sync function to run every hour for users that have been active within the last hour
+	register_plugin_hook('cron', 'hourly', 'access_plus_sync_metacollections');
 }
 
 // call function on object creation and update to set permissions
@@ -65,8 +70,9 @@ register_elgg_event_handler('update','annotation','access_plus_access_process', 
 // call function on page load to update any permissions that are pending
 register_elgg_event_handler('init', 'system', 'access_plus_pending_process');
 
-//call function on user login to synchronize the metacollections with current collections
-register_elgg_event_handler('login', 'user', 'access_plus_sync_metacollections');
+//call function on user login and logout to synchronize the metacollections with current collections
+register_elgg_event_handler('login', 'user', 'access_plus_add_to_sync_list');
+register_elgg_event_handler('logout', 'user', 'access_plus_add_to_sync_list');
 
 register_elgg_event_handler('init','system','access_plus_init');
 
