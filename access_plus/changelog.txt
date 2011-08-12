@@ -1,6 +1,6 @@
 Changelog
 
-08/12/2011 - v0.5
+08/12/2011 - v0.4
 Global setting for "Friends" can now be combined with Group collections
 as not everyone in a group may be a friend.
 Moved sync function to hourly cron for performance.
