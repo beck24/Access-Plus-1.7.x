@@ -413,6 +413,9 @@ function access_plus_pending_process(){
 				if(is_numeric($guid) && is_numeric($access_id)){
 					// direct call to database to prevent infinite loop of events
 					update_data("UPDATE {$CONFIG->dbprefix}entities set access_id='$access_id' WHERE guid=$guid");
+					
+					//update river with new access
+					update_river_access_by_object($guid, $access_id);
 				}		
 			}
 			elseif($datatype == "metadata"){
