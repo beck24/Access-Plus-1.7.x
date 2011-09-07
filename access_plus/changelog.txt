@@ -1,5 +1,9 @@
 Changelog
 
+09/06/2011 - v1.0
+Now correctly updates permissions for the river, releasing as stable 1.0 as no additional
+bugs have been submitted
+
 08/12/2011 - v0.4
 Global setting for "Friends" can now be combined with Group collections
 as not everyone in a group may be a friend.
